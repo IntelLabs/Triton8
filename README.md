@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/readme/triton8-logo.png" alt="Triton8 Logo" width="400">
+</p>
+
 # Triton Kernel Optimizer for Intel XPU
 
 An LLM-driven optimization loop that transforms PyTorch implementations into fast, numerically equivalent Triton kernels for Intel GPUs. The agent analyzes operations, searches optimization strategies from a curated knowledge base, generates and benchmarks kernel variants in a branching trial tree, and finalizes the best result.
