@@ -1,0 +1,40 @@
+
+inputs:
+  Q:
+    shape: [B, A, S, D]
+    dtype: float16
+  K:
+    shape: [B, A, S, D]
+    dtype: float16
+  V:
+    shape: [B, A, S, D]
+    dtype: float16
+
+inits:
+  # Model ctor can take D (head dim) if you want; harmless for fwd-only launchers.
+  - dim: D
+
+ci:
+  - params: [Q, K, V]
+    dtype: float32
+    dims:
+      # Small CI shape: fast correctness sanity
+      B: 1
+      A: 4
+      S: 128
+      D: 64
+    flop: "2*B*A*S*S*D"
+
+bench-gpu:
+  # Qwen 7B / 14B typical inference
+  # Hidden 4096, heads 32 -> D=128
+  # 8k context increasingly common in chat deployments
+  - params: [Q, K, V]
+    dtype: float16
+    dims:
+      B: 1
+      A: 32
+      S: 8192
+      D: 128
+    flop: "4*B*A*S*S*D"
+

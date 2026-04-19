@@ -1,0 +1,29 @@
+inputs:
+  X:
+    shape: [BATCH_SIZE, INPUT_SIZE]
+    dtype: inherit
+
+inits:
+  - dim: INPUT_SIZE
+  - dim: HIDDEN_SIZE
+  - dim: SCALING_FACTOR
+
+ci:
+  - params: [X]
+    dtype: float32
+    dims:
+      BATCH_SIZE: 2
+      INPUT_SIZE: 32
+      HIDDEN_SIZE: 32
+      SCALING_FACTOR: 2.0
+
+bench-xpu:
+  - params: [X]
+    dtype: bfloat16
+    dims:
+      BATCH_SIZE: 1024
+      INPUT_SIZE: 8192
+      HIDDEN_SIZE: 8192
+      SCALING_FACTOR: 2.0
+    flop: "2*BATCH_SIZE*HIDDEN_SIZE*INPUT_SIZE"
+

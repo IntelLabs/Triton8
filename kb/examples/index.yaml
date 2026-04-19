@@ -1,0 +1,319 @@
+# Knowledge Base Example TODO: more
+examples:
+  - id: gemm_activation
+    name: "GEMM + Activation Fusion"
+    description: |
+      Shows optimization of a linear layer followed by activation.
+      Original has two separate kernels, optimized fuses them.
+    unoptimized: gemm_activation_unoptimized.py
+    optimized: gemm_activation_optimized.py
+    optimizations_applied:
+      - Kernel fusion (2 kernels → 1)
+      - Tensor descriptors (vs manual arithmetic)
+      - Large tiles 256x256 (vs 64x64)
+      - 32 warps (vs default 8)
+      - grf_mode='256'
+      - GROUP_SIZE_M swizzling
+      - 1D grid (vs 2D)
+      - Autotune configs
+    expected_speedup: "2-4x"
+
+  - id: gemm_simple
+    name: "Simple GEMM Optimization"
+    description: |
+      Basic matrix multiplication showing XPU-specific optimizations.
+    unoptimized: gemm_simple_unoptimized.py
+    optimized: gemm_simple_optimized.py
+    optimizations_applied:
+      - Tensor descriptors
+      - Large tiles
+      - XPU warp/grf configuration
+      - Tile swizzling
+    expected_speedup: "1.5-3x"
+
+  - id: matmul_at
+    name: "MatMul A^T @ B Optimization"
+    description: |
+      Matrix multiplication C = A^T @ B where A is [K, M], B is [K, N].
+      Shows conversion from manual pointer arithmetic to tensor descriptors,
+      2D grid to 1D with swizzling, and XPU-specific optimizations.
+    unoptimized: matmul_at_unoptimized.py
+    optimized: matmul_at_optimized.py
+    optimizations_applied:
+      - Tensor descriptors (tl.make_tensor_descriptor) instead of manual arithmetic
+      - Large tiles 256x256 (vs 64-128)
+      - 32 warps (vs 4-8)
+      - grf_mode='256' for large register file
+      - GROUP_SIZE_M swizzling for L2 cache
+      - 1D grid with swizzling (vs 2D grid)
+      - fp16 dot with fp32 accumulation
+    expected_speedup: "2-4x"
+
+  - id: stream_k_gemm_descriptors
+    name: "Stream K GEMM with Tensor Descriptors"
+    description: |
+      Advanced Stream K GEMM for Intel XPU using tensor descriptors.
+      Two-wave decomposition (stream-K + data-parallel), atomic
+      accumulation for partial tiles, hardware-aware program count.
+      Source: Intel triton-kernels-benchmark suite.
+    file: stream_k_gemm_descriptors.py
+    optimizations_applied:
+      - Tensor descriptors (tl.make_tensor_descriptor / desc.load / desc.store)
+      - Stream K two-wave decomposition (first_wave + full_tiles)
+      - Atomic partial tile accumulation (tl.atomic_add, sem='relaxed')
+      - JIT helper functions for tile swizzling (reusable swizzle_tile)
+      - Hardware capability query (gpu_subslice_count for program count)
+      - Conditional swizzle toggle (GROUP_SIZE_M > 0)
+      - Mixed descriptor + manual pointer paths (descriptors for loads/stores, manual for atomics)
+      - Pre-zeroed output buffer for atomic safety
+    config: "256x256x32, 32 warps, grf_mode='256', GROUP_SIZE_M=4"
+    workload: "3072x4096x3072 bfloat16 → float32"
+    expected_speedup: "improved utilization for non-divisible tile counts"
+
+  - id: gemm_tensor_of_ptr
+    name: "GEMM Tensor of Pointers (manual pointer arithmetic baseline)"
+    description: |
+      Standard Triton tutorial-style GEMM using manual pointer arithmetic
+      (tensor of pointers). Includes both non-batched and batched variants.
+      Demonstrates GROUP_SIZE_M swizzling, K-loop boundary masking, and
+      int64 cast for batch offsets. This is the "unoptimized baseline" style
+      that tensor descriptors (preferred) / block pointers improve upon.
+    file: gemm_tensor_of_ptr.py
+    optimizations_applied:
+      - GROUP_SIZE_M tile swizzling (1D grid)
+      - fp32 accumulation
+      - K-loop boundary masking
+      - Batched variant with axis=1 batch grid
+      - int64 cast for batch pointer offsets (overflow safety)
+      - External autotune configs (gemm_benchmark.get_matmul_autotune_configs)
+    config: "varies (external autotune configs)"
+    workload: "various shapes, bfloat16/float16 → float32"
+    expected_speedup: "baseline (upgrade to tensor descriptors for better perf)"
+
+  - id: fused_softmax
+    name: "Fused Softmax (row-wise, multi-row tiling)"
+    description: |
+      Row-wise fused softmax from Triton tutorial 02-fused-softmax, adapted
+      for Intel XPU benchmarks. Demonstrates multi-row tiling (BLOCK_SIZE_Y),
+      hardware work group size query, warp_size autotune sweeping, power-of-2
+      block sizing, and -inf mask fill for numerical stability.
+    file: fused_softmax.py
+    optimizations_applied:
+      - Multi-row tiling (BLOCK_SIZE_Y rows per program)
+      - Hardware work group size query (max_work_group_size)
+      - warp_size autotune sweeping ({16, 32} × num_warps)
+      - Power-of-2 column block (triton.next_power_of_2)
+      - Numerical stability (-inf mask fill, max-subtract before exp)
+      - bfloat16 input, in-register fp32 computation
+    config: "BLOCK_SIZE_X=next_power_of_2(N), BLOCK_SIZE_Y=MAX_WG_SIZE//BLOCK_SIZE_X"
+    workload: "4096 × {256..32K} bfloat16 softmax"
+    expected_speedup: "fused vs naive: significant (single pass vs 5 passes)"
+
+  - id: gemm_postop_addmatrix
+    name: "GEMM + PostOp Add Matrix (tensor descriptors, int8 support)"
+    description: |
+      GEMM with fused matrix addition epilogue (C = A @ B + D). Uses tensor
+      descriptors for all loads/stores. Supports both bf16→fp32 and int8→int32
+      paths via ACCUMULATOR_DTYPE constexpr. Includes non-batched and batched
+      variants with batch-offset descriptor base pointers.
+    file: gemm_postop_addmatrix.py
+    optimizations_applied:
+      - Tensor descriptors for A, B, C, D
+      - GEMM + matrix add epilogue fusion (D loaded after K-loop)
+      - ACCUMULATOR_DTYPE as constexpr (float32 for float, int32 for int8)
+      - Batched variant with int64 batch offset baked into descriptor base
+      - Multiple autotune configs including skinny-M (BLOCK_SIZE_M=8)
+      - GROUP_SIZE_M tile swizzling
+    config: "varied: 256x256x32, 256x128x32, 64x128x32, 8x512x64, 8x128x64"
+    workload: "various shapes, bf16/int8 → fp32/int32"
+    expected_speedup: "eliminates separate add kernel launch + memory round-trip"
+
+  - id: gemm_postop_gelu
+    name: "GEMM + PostOp GeLU (tensor descriptors, JIT activation helpers)"
+    description: |
+      GEMM with fused GeLU activation epilogue. Uses tensor descriptors for
+      loads/stores. GeLU implemented via composable @triton.jit helpers:
+      gelu() → tanh() → tl.sigmoid(). Demonstrates module-level tl.constexpr()
+      for compile-time constants. Includes non-batched and batched variants.
+    file: gemm_postop_gelu.py
+    optimizations_applied:
+      - Tensor descriptors for A, B, C
+      - GEMM + GeLU epilogue fusion (activation applied to accumulator before store)
+      - Reusable @triton.jit helpers (tanh, gelu)
+      - Module-level tl.constexpr(sqrt(2/pi)) for GeLU constant
+      - Sigmoid-based tanh (tanh = 2*sigmoid(2x) - 1)
+      - Batched variant with int64 batch offset in descriptor base
+      - Multiple autotune configs including skinny-M (BLOCK_SIZE_M=8)
+    config: "varied: 256x256x32, 256x128x32, 64x128x32, 8x512x64"
+    workload: "various shapes, bf16 → fp32 with GeLU"
+    expected_speedup: "eliminates separate GeLU kernel launch + memory round-trip"
+
+  - id: flash_attention_fwd_bwd
+    name: "Flash Attention Forward + Backward (tensor descriptors, exp2, causal)"
+    description: |
+      Full Flash Attention implementation with forward and backward passes for
+      Intel XPU. Forward uses online softmax with exp2/log2 arithmetic, tensor
+      descriptors with .T transpose, adaptive grid layout (small vs large N_CTX),
+      and two-stage causal masking. Backward computes dQ/dK/dV with BLK_SLICE_FACTOR
+      for efficient causal masking and pre-scaled K. Wrapped in torch.autograd.Function.
+    file: flash_attention.py
+    optimizations_applied:
+      - exp2/log2 attention with RCP_LN2=1.44269504 scaling
+      - Tensor descriptors (2D for Q/K/V/O, 1D for logsumexp M)
+      - Flattened [Z*H*N_CTX, HEAD_DIM] descriptors with manual batch/head offset
+      - Descriptor .load().T for K transpose (no extra memory access)
+      - tl.trans() for backward transposes
+      - tl.multiple_of() compiler alignment hints
+      - Adaptive grid layout (N_CTX<=512 vs >512)
+      - Two-stage causal masking (STAGE 1=off-band, STAGE 2=on-band)
+      - BLK_SLICE_FACTOR for smaller masked blocks in backward
+      - Pre-scaled K in backward (K * sm_scale * RCP_LN2)
+      - triton.jit inner loop helper (_attn_fwd_inner)
+      - Autotune: BLOCK_M={128,256}, BLOCK_N={32,64}, stages={2,3,4}, warps={8,16,32}
+    config: "varied via autotune"
+    workload: "Z={1..32}, H={16,32}, N_CTX up to 16384, HEAD_DIM={64,128}, fp16"
+    expected_speedup: "O(N) memory vs O(N^2) for standard attention"
+
+# Key optimization checklist for LLM
+optimization_checklist:
+  - name: "Use tensor descriptors (preferred on XPU) or block pointers"
+    why: "Hardware-optimized memory access, automatic boundary handling; tensor descriptors produce better codegen on XPU"
+    before: |
+      offs_m = pid_m * BLOCK_M + tl.arange(0, BLOCK_M)
+      a_ptrs = a_ptr + offs_m[:, None] * stride_am + offs_k[None, :] * stride_ak
+      a = tl.load(a_ptrs, mask=mask_m[:, None] & mask_k[None, :])
+    after: |
+      # Option 1: Tensor descriptors (preferred on XPU — better address codegen)
+      a_desc = tl.make_tensor_descriptor(
+          base=a_ptr, shape=[M, K], strides=[stride_am, stride_ak],
+          block_shape=[BLOCK_M, BLOCK_K])
+      a = a_desc.load([pid_m * BLOCK_M, k_offset])
+
+      # Option 2: Block pointers (fallback)
+      a_block_ptr = tl.make_block_ptr(
+          base=a_ptr, shape=(M, K), strides=(stride_am, stride_ak),
+          offsets=(pid_m * BLOCK_M, 0), block_shape=(BLOCK_M, BLOCK_K), order=(1, 0))
+      a = tl.load(a_block_ptr, boundary_check=(0, 1))
+
+  - name: "Use tile swizzling"
+    why: "Better L2 cache reuse for large matrices"
+    before: |
+      pid_m = tl.program_id(0)
+      pid_n = tl.program_id(1)
+    after: |
+      pid = tl.program_id(0)
+      num_pid_m = tl.cdiv(M, BLOCK_M)
+      num_pid_n = tl.cdiv(N, BLOCK_N)
+      num_pid_in_group = GROUP_SIZE_M * num_pid_n
+      group_id = pid // num_pid_in_group
+      first_pid_m = group_id * GROUP_SIZE_M
+      group_size_m = tl.minimum(num_pid_m - first_pid_m, GROUP_SIZE_M)
+      pid_m = first_pid_m + ((pid % num_pid_in_group) % group_size_m)
+      pid_n = (pid % num_pid_in_group) // group_size_m
+
+  - name: "Use XPU autotune configs"
+    why: "32 warps and grf_mode='256' are optimal for Intel XPU large GEMMs"
+    before: |
+      triton.Config({'BLOCK_M': 64, 'BLOCK_N': 64}, num_warps=8)
+    after: |
+      triton.Config(
+          {'BLOCK_M': 256, 'BLOCK_N': 256, 'BLOCK_K': 32,
+           'GROUP_SIZE_M': 4, 'grf_mode': '256'},
+          num_warps=32, num_stages=2)
+
+  - name: "Fuse kernels"
+    why: "Avoid extra kernel launch overhead and memory round-trips"
+    before: |
+      # Kernel 1: GEMM
+      _gemm_kernel[grid](...)
+      # Kernel 2: Activation
+      _activation_kernel[grid](...)
+    after: |
+      # Single fused kernel
+      _gemm_activation_kernel[grid](...)
+
+# Critical constraints (MUST follow)
+critical_constraints:
+  - name: "NO default values for autotune parameters"
+    description: |
+      Parameters in @triton.autotune Config dict must NOT have defaults
+      in the kernel signature. This causes "Conflicting meta-parameters" error.
+    wrong: |
+      @triton.autotune(configs=[triton.Config({'BLOCK_M': 256}, ...)])
+      @triton.jit
+      def kernel(..., BLOCK_M: tl.constexpr = 256):  # WRONG!
+    correct: |
+      @triton.autotune(configs=[triton.Config({'BLOCK_M': 256}, ...)])
+      @triton.jit
+      def kernel(..., BLOCK_M: tl.constexpr):  # Correct - no default
+
+  - name: "1D grid with swizzling"
+    description: |
+      When using GROUP_SIZE_M swizzling, grid must be 1D (flattened).
+    wrong: |
+      grid = (triton.cdiv(M, BLOCK_M), triton.cdiv(N, BLOCK_N))
+    correct: |
+      grid = lambda META: (triton.cdiv(M, META['BLOCK_M']) * triton.cdiv(N, META['BLOCK_N']),)
+
+  - name: "boundary_check uses dimension indices"
+    description: |
+      boundary_check parameter takes tuple of dimension indices (0, 1), not booleans.
+    wrong: |
+      tl.load(ptr, boundary_check=(True, True))
+    correct: |
+      tl.load(ptr, boundary_check=(0, 1))
+
+  - name: "Tensor Descriptors vs Block Pointers - CHOOSE ONE PER OPERATION (descriptors preferred)"
+    description: |
+      Tensor descriptors and block pointers have DIFFERENT APIs. Choose one per operation.
+      Tensor descriptors are preferred on XPU — better address codegen.
+
+      OPTION 1 - TENSOR DESCRIPTORS (preferred on XPU):
+      ```python
+      desc = tl.make_tensor_descriptor(a_ptr, shape=[M, K], strides=[stride_m, stride_k],
+                                       block_shape=[BLOCK_M, BLOCK_K])
+      data = desc.load([pid_m * BLOCK_M, k_offset])  # NO boundary_check — handled internally
+      ```
+
+      OPTION 2 - BLOCK POINTERS (fallback):
+      ```python
+      ptr = tl.make_block_ptr(base=a_ptr, shape=(M, K), strides=(stride_m, stride_k),
+                              offsets=(pid_m * BLOCK_M, 0), block_shape=(BLOCK_M, BLOCK_K),
+                              order=(1, 0))
+      data = tl.load(ptr, boundary_check=(0, 1))  # boundary_check IS supported
+      ptr = tl.advance(ptr, (0, BLOCK_K))
+      ```
+
+      CRITICAL ERROR TO AVOID:
+      ```python
+      # WRONG - mixing descriptor with block pointer syntax
+      desc = tl.make_tensor_descriptor(...)
+      data = desc.load(..., boundary_check=(0, 1))  # ERROR! descriptors don't have boundary_check
+      ```
+
+      EXCEPTION: Mixing descriptors (for loads/stores) with manual pointers (for atomics)
+      in the same kernel IS valid — descriptors don't support atomics.
+
+  - name: "Pre-zero output for Stream K atomic accumulation"
+    description: |
+      When using Stream K with atomic_add for partial tiles, the output
+      tensor MUST be torch.zeros, not torch.empty.
+
+  - name: "Cast batch index to int64 before stride multiplication"
+    description: |
+      program_id returns int32. For batched kernels with large tensors,
+      bid * stride_z can overflow int32. Always cast first.
+    wrong: |
+      offset_a = bid * stride_az              # int32 overflow risk
+    correct: |
+      offset_a = bid.to(tl.int64) * stride_az  # safe
+
+  - name: "Batched GEMM grid: axis=0 = tiles, axis=1 = batch"
+    description: |
+      For batched GEMM, keep the tile swizzle on axis=0 and put the batch
+      dimension on axis=1. Do not flatten batch into axis=0.
+    wrong: |
+      # Flattening batch into tile dimension breaks swizzle
+      grid = (num_tiles * B,)
+    correct: |
+      grid = (num_tiles, B)

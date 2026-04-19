@@ -1,0 +1,28 @@
+inputs:
+  X:
+    shape: [BATCH, IN_FEAT]
+    dtype: inherit
+
+inits:
+  - dim: IN_FEAT
+  - dim: OUT_FEAT
+
+ci:
+  - params: [X]
+    dtype: float32
+    dims:
+      BATCH: 2
+      IN_FEAT: 64
+      OUT_FEAT: 64
+    flop: "2*BATCH*IN_FEAT*OUT_FEAT"
+
+bench-gpu:
+  - params: [X]
+    dtype: bfloat16
+    dims:
+      BATCH: 1024
+      IN_FEAT: 4096
+      OUT_FEAT: 4096
+    flop: "2*BATCH*IN_FEAT*OUT_FEAT"
+    rtol: 1.0e-3
+    atol: 1.0e-3

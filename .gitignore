@@ -1,0 +1,62 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test outputs
+*.log
+test_output/
+benchmarks/
+*.prof
+
+# Trial tree working directories
+trials/
+
+# Finalized optimized kernels (generated output)
+output/
+
+# Triton cache
+.triton/
+__triton_cache__/
+
+# Note: external_tools/ is a git submodule (tracked in .gitmodules)
+# If you need to ignore it temporarily, uncomment:
+# external_tools/

@@ -1,0 +1,38 @@
+
+inputs:
+  Q:
+    shape: [B, A, S, D]
+    dtype: float16
+  K:
+    shape: [B, A, S, D]
+    dtype: float16
+  V:
+    shape: [B, A, S, D]
+    dtype: float16
+
+inits:
+  # Model ctor can take D (head dim) if you want; harmless for fwd-only launchers.
+  - dim: D
+
+ci:
+  - params: [Q, K, V]
+    dtype: float32
+    dims:
+      # Small CI shape: fast correctness sanity
+      B: 1
+      A: 4
+      S: 128
+      D: 64
+    flop: "2*B*A*S*S*D"
+
+bench-gpu:
+  # DeepSeek-Coder long context (code models push sequence length)
+  # 16k context realistic for repo-level prompts
+  - params: [Q, K, V]
+    dtype: float16
+    dims:
+      B: 1
+      A: 40
+      S: 16384
+      D: 128
+    flop: "4*B*A*S*S*D"

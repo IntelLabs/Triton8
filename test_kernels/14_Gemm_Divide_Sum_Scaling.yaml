@@ -1,0 +1,31 @@
+inputs:
+  X:
+    shape: [BATCH, IN_SIZE]
+    dtype: inherit
+
+inits:
+  - dim: IN_SIZE
+  - dim: HIDDEN_SIZE
+  - dim: SCALE
+
+ci:
+  - params: [X]
+    dtype: float32
+    dims:
+      BATCH: 2
+      IN_SIZE: 64
+      HIDDEN_SIZE: 64
+      SCALE: 1.5
+    flop: "2*BATCH*IN_SIZE*HIDDEN_SIZE + BATCH*HIDDEN_SIZE"
+
+bench-gpu:
+  - params: [X]
+    dtype: bfloat16
+    dims:
+      BATCH: 1024
+      IN_SIZE: 4096
+      HIDDEN_SIZE: 4096
+      SCALE: 1.5
+    flop: "2*BATCH*IN_SIZE*HIDDEN_SIZE + BATCH*HIDDEN_SIZE"
+    rtol: 0.9783239365
+    atol: 1.0e-05
