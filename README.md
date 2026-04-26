@@ -21,6 +21,10 @@ Claude Code drives the optimization loop, augmented by a set of specialized tool
 - **`xpu_profiler.py`** — collects VTune GPU hardware counters (EU occupancy, memory bandwidth, stall cycles) and returns targeted optimization recommendations.
 - **`trial_manager.py`** — maintains a tree of trials: branching from promising results, recording speedups, and finalizing the best kernel to `output/`.
 
+<p align="center">
+  <img src="assets/readme/triton8-flow.png" alt="Triton8 optimization loop showing analyze, generate, validate, benchmark, and profile stages with a branching trial tree." width="720">
+</p>
+
 The knowledge base (`kb/`) provides the optimization expertise: correctness constraints (`correctness.yaml`), XPU-specific patterns like tensor descriptors and GRF tuning (`xpu_optimizations.yaml`), fusion heuristics (`fusion_patterns.yaml`), progressive optimization levels (`optimization_levels.yaml`), and annotated before/after examples (`kb/examples/`). Claude consults these during analysis and when deciding what to try next.
 
 The agent runs a configurable trial loop (default: 10 trials, controlled by `config.yaml`). Each trial generates a Triton kernel, validates it, benchmarks it, and uses the result — along with profiler feedback and KB strategies — to inform the next trial. The best correct kernel is finalized to `output/`.
