@@ -88,7 +88,7 @@ python skills/trial_manager.py finalize <kernel_name> <name>_triton.py
 - Prefer tensor descriptors (`tl.make_tensor_descriptor`) over block pointers for all new kernels on XPU
 - Do NOT mix block pointer and tensor descriptor APIs on same operation
 - Pre-zero output buffers when using atomic accumulation
-- Model class must be compatible with ai-bench (`nn.Module` with `nn.Linear`)
+- Model class must be compatible with the benchmark harness (`nn.Module` with `nn.Linear`)
 - Match `get_inputs()`, `get_init_inputs()`, and module-level constants from `*_pytorch.py`
 
 ## REFERENCE DOCS — Read these during Step 1

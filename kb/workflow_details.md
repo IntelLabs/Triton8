@@ -34,7 +34,7 @@ When given a PyTorch kernel (typically `*_pytorch.py`, but can be any user-speci
    - Cast batch indices to int64 before stride multiplication
    - Do NOT mix block pointer and tensor descriptor APIs on same operation
    - Pre-zero output buffers when using atomic accumulation
-   - Model class must be compatible with ai-bench (standard `nn.Module` with `nn.Linear`)
+   - Model class must be compatible with the benchmark harness (standard `nn.Module` with `nn.Linear`)
 
 ## Trial Loop Detail
 
@@ -106,7 +106,7 @@ python skills/trial_manager.py finalize <kernel_name> <name>_triton.py
 
 ## Benchmarking Details
 
-`skills/benchmark.py` uses ai-bench (`modules/ai-bench/`) for both correctness and performance:
+`skills/benchmark.py` uses the ai-bench package for both correctness and performance:
 
 1. **Correctness** - Compares outputs between PyTorch and Triton implementations
    - Uses `check_correctness()` with per-variant tolerances from YAML spec (defaults: rtol=1e-2, atol=1e-5)
@@ -114,12 +114,12 @@ python skills/trial_manager.py finalize <kernel_name> <name>_triton.py
    - Falls back to direct module loading when no spec file is available
 
 2. **Performance** - Benchmarks both implementations on XPU hardware
-   - Reads the YAML spec file (auto-detected from `modules/ai-bench/problems/specs/KernelBench/level*/`)
+   - Reads the YAML spec file (auto-detected from `test_kernels/`)
    - Reports speedup metrics (Triton vs PyTorch) per spec variant
 
 **Both checks must pass** for the kernel to be considered complete.
 
-**Setup**: External tools must be initialised: `git submodule update --init`
+**Setup**: Install dependencies: `uv sync`
 
 ## Profiling with VTune (`skills/xpu_profiler.py`)
 
@@ -204,13 +204,12 @@ triton8/
 ├── skills/                          # Standalone tools (DO NOT recreate)
 │   ├── analyze_kernel.py            # PyTorch → operations, shapes, fusion opportunities
 │   ├── validate_triton.py           # Syntax + constraint checks before benchmarking
-│   ├── benchmark.py                 # Correctness + performance via ai-bench
+│   ├── benchmark.py                 # Correctness + performance via ai-bench harness
 │   ├── trial_manager.py             # Tree-structured trial init/save/record/finalize
 │   ├── xpu_profiler.py              # VTune GPU hardware counters + recommendations
 │   └── config.py                    # Shared configuration loader for config.yaml
 │
 ├── test_kernels/                    # PyTorch reference implementations + YAML specs
-├── modules/ai-bench/               # Benchmark harness (git submodule)
 ├── output/                          # Finalized optimized kernels (created by finalize)
 └── trials/                          # Trial tree state (created by trial_manager.py init)
 ```

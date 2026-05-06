@@ -44,8 +44,7 @@ The agent runs a configurable trial loop (default: 10 trials, controlled by `con
 
 ```bash
 git clone https://github.com/IntelLabs/Triton8.git triton8 && cd triton8
-git submodule update --init
-cd modules/ai-bench && uv sync && cd ../..
+uv sync
 python skills/benchmark.py --help   # verify install
 ```
 
@@ -139,13 +138,12 @@ triton8/
 ├── skills/                      # Standalone tools (used by agent and manually)
 │   ├── analyze_kernel.py        # PyTorch → operations, shapes, fusion opportunities
 │   ├── validate_triton.py       # Syntax + constraint checks before benchmarking
-│   ├── benchmark.py             # Correctness + performance via ai-bench
+│   ├── benchmark.py             # Correctness + performance via ai-bench harness
 │   ├── trial_manager.py         # Tree-structured trial init/save/record/finalize
 │   ├── xpu_profiler.py          # VTune GPU hardware counters + recommendations
 │   └── config.py                # Shared configuration loader for config.yaml
 │
 ├── test_kernels/                # PyTorch reference implementations + YAML specs
-├── modules/ai-bench/            # Benchmark harness (git submodule)
 ├── output/                      # Finalized optimized kernels
 └── trials/                      # Trial tree state (managed by trial_manager.py)
 ```
@@ -184,7 +182,7 @@ def get_init_inputs():
     return [dim_a, dim_b]
 ```
 
-`get_inputs()` and `get_init_inputs()` are the ai-bench interface. Shapes and values here must match the YAML spec below.
+`get_inputs()` and `get_init_inputs()` are the benchmark harness interface. Shapes and values here must match the YAML spec below.
 
 **2. Problem spec** (`test_kernels/XX_Name.yaml`):
 
@@ -264,7 +262,7 @@ For substantial patterns, add a reference implementation to `kb/examples/` as an
 
 The trial loop, knowledge base, and template infrastructure are not tied to a specific device. Four components are hardware-specific; everything else works without modification.
 
-**1. Replace the benchmark harness.** `skills/benchmark.py` calls into `modules/ai-bench`. Swap it for a harness that invokes your target device. The script must emit `correctness: pass/fail` and `triton_us: <float>` in a format `trial_manager.py` can parse — see the existing `benchmark.py` for the output contract.
+**1. Replace the benchmark harness.** `skills/benchmark.py` uses the [AI-bench](https://github.com/libxsmm/AI-bench) package. Swap it for a harness that invokes your target device. The script must emit `correctness: pass/fail` and `triton_us: <float>` in a format `trial_manager.py` can parse — see the existing `benchmark.py` for the output contract.
 
 **2. Replace or disable the profiler.** `skills/xpu_profiler.py` is VTune-specific. Implement an equivalent for your target, or set `vtune_enabled: false` in `config.yaml` to skip profiling steps entirely.
 

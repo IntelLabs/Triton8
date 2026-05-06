@@ -71,7 +71,7 @@ When transforming PyTorch -> Triton:
 - [ ] Mixed precision: bf16/fp16 -> fp32 accumulator
 - [ ] Fused light epilogues only
 - [ ] Pre-packed weight transposes (cached in `_pack_weights()`)
-- [ ] Model class compatible with ai-bench (standard nn.Module with nn.Linear)
+- [ ] Model class compatible with benchmark harness (standard nn.Module with nn.Linear)
 - [ ] Matched `get_inputs()`, `get_init_inputs()`, module-level constants from *_pytorch.py
 - [ ] Triton file name matches base kernel name (for spec YAML auto-detection)
 - [ ] Validated with `python skills/validate_triton.py <triton_file>`

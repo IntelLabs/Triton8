@@ -124,9 +124,9 @@ def kernel(
     c_desc.store([off_m, off_n], acc)
 ```
 
-## Model Class Wrapper (ai-bench compatible)
+## Model Class Wrapper (benchmark harness compatible)
 
-The Model class uses standard `nn.Module` patterns. ai-bench creates the model via `__init__()` and syncs weights using `copy_model_weights()`.
+The Model class uses standard `nn.Module` patterns. The benchmark harness creates the model via `__init__()` and syncs weights using `copy_model_weights()`.
 
 ```python
 class Model(nn.Module):
@@ -205,8 +205,8 @@ See `kb/examples/gemm_activation_optimized.py` for a similar pattern.
 
 ## File Naming Convention
 
-Spec YAML files live in `modules/ai-bench/problems/specs/KernelBench/level*/`.
-Auto-detection strips suffixes (`_triton`, `_optimized`, `_opt`, `_pytorch`) from filename and searches `level1/`, `level2/`, `level3/`. Override with `--spec` if needed.
+Spec YAML files live in `test_kernels/`.
+Auto-detection strips suffixes (`_triton`, `_optimized`, `_opt`, `_pytorch`) from the filename and searches for a matching `.yaml` file. Override with `--spec` if needed.
 
 ## Activation Helpers
 
