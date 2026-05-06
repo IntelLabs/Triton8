@@ -1,3 +1,0 @@
-[submodule "modules/ai-bench"]
-	path = modules/ai-bench
-	url = https://github.com/libxsmm/AI-bench.git
