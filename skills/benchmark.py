@@ -2,7 +2,7 @@
 """
 Benchmark Triton kernel against a baseline (PyTorch or Triton).
 
-Validates correctness and measures performance using ai-bench.
+Validates correctness and measures performance using the ai-bench harness.
 
 Usage:
     python skills/benchmark.py <baseline_file> <triton_file> [--spec <spec.yaml>] [--device <xpu|cuda>] [--ci] [--triton-baseline] [--baseline-us 123.45]
@@ -20,15 +20,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 # ---------------------------------------------------------------------------
-# Ensure submodules are importable
-# ---------------------------------------------------------------------------
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-AIBENCH_ROOT = PROJECT_ROOT / "modules" / "ai-bench"
-SPECS_ROOT = PROJECT_ROOT / "modules" / "ai-bench" / "problems" / "specs" / "KernelBench"
-SPEC_LEVELS = ("level1", "level2", "level3")
-
-if str(AIBENCH_ROOT) not in sys.path:
-    sys.path.insert(0, str(AIBENCH_ROOT))
 
 
 def _load_module(filepath: Path, module_name: str):
@@ -40,7 +32,7 @@ def _load_module(filepath: Path, module_name: str):
 
 
 def _determine_spec_type(spec_file: Path, ci: bool):
-    """Determine which spec key to use for ai-bench."""
+    """Determine which spec key to use for the ai-bench harness."""
     from ai_bench.harness import core as ai_hc
 
     if ci:
@@ -70,12 +62,12 @@ def _determine_spec_type(spec_file: Path, ci: bool):
 
 
 # ---------------------------------------------------------------------------
-# Correctness check via ai-bench
+# Correctness check
 # ---------------------------------------------------------------------------
 def run_correctness(
     pytorch_file: Path, triton_file: Path, spec_file: Path | None, device_str: str
 ) -> bool:
-    """Validate numerical equivalence using ai-bench."""
+    """Validate numerical equivalence."""
     if spec_file and spec_file.exists():
         return _run_correctness_with_spec(pytorch_file, triton_file, spec_file, device_str)
     else:
@@ -85,7 +77,7 @@ def run_correctness(
 def _run_correctness_with_spec(
     pytorch_file: Path, triton_file: Path, spec_file: Path, device_str: str
 ) -> bool:
-    """Correctness check using ai-bench spec infrastructure."""
+    """Correctness check using spec infrastructure."""
     try:
         import torch
         from ai_bench.harness import core as ai_hc
@@ -97,7 +89,7 @@ def _run_correctness_with_spec(
         from ai_bench.harness.runner.kernel_runner import KernelRunner
     except ImportError as e:
         print(f"  Could not import ai_bench: {e}")
-        print(f"  Ensure modules/ai-bench is initialised (git submodule update --init)")
+        print(f"  Ensure ai-bench is installed (uv sync)")
         return False
 
     device = torch.device(device_str)
@@ -198,7 +190,7 @@ def _run_correctness_no_spec(pytorch_file: Path, triton_file: Path, device_str: 
         )
     except ImportError as e:
         print(f"  Could not import ai_bench: {e}")
-        print(f"  Ensure modules/ai-bench is initialised (git submodule update --init)")
+        print(f"  Ensure ai-bench is installed (uv sync)")
         return False
 
     device = torch.device(device_str)
@@ -242,33 +234,22 @@ def _run_correctness_no_spec(pytorch_file: Path, triton_file: Path, device_str: 
 
 
 # ---------------------------------------------------------------------------
-# Performance benchmark via ai-bench
+# Performance benchmark
 # ---------------------------------------------------------------------------
 def find_spec_file(triton_file: Path) -> Path | None:
-    """Derive the YAML spec path.
-
-    Search order:
-      1. test_kernels/<stem>.yaml  (stem with and without _pytorch suffix)
-      2. ai-bench KernelBench specs (level1/level2/level3)
-    """
+    """Derive the YAML spec path from test_kernels/."""
     stem = triton_file.stem
     for suffix in ("_triton", "_optimized", "_opt", "_pytorch"):
         if stem.endswith(suffix):
             stem = stem[: -len(suffix)]
             break
 
-    # 1. Look in test_kernels/ first (files may or may not have _pytorch suffix)
     test_kernels_dir = PROJECT_ROOT / "test_kernels"
     for candidate_stem in (stem, stem + "_pytorch"):
         candidate = test_kernels_dir / (candidate_stem + ".yaml")
         if candidate.exists():
             return candidate
 
-    # 2. Fall back to ai-bench specs
-    for level in SPEC_LEVELS:
-        candidate = SPECS_ROOT / level / (stem + ".yaml")
-        if candidate.exists():
-            return candidate
     return None
 
 
@@ -281,7 +262,7 @@ def run_performance(
     triton_baseline: bool = False,
     baseline_us: list[float] | None = None,
 ) -> bool:
-    """Benchmark baseline vs optimized Triton using ai-bench KernelRunner.
+    """Benchmark baseline vs optimized Triton using KernelRunner.
 
     If baseline_us is provided (list of floats, one per variant), the baseline
     performance measurement is skipped and the cached values are used instead.
@@ -293,7 +274,7 @@ def run_performance(
         from ai_bench.harness.runner.kernel_runner import KernelRunner
     except ImportError as e:
         print(f"  Could not import ai_bench: {e}")
-        print(f"  Ensure modules/ai-bench is initialised (git submodule update --init)")
+        print(f"  Ensure ai-bench is installed (uv sync)")
         return False
 
     device = torch.device(device_str)
@@ -457,7 +438,7 @@ def main():
 
     # --- Correctness ---
     print(f"\n{'=' * 70}")
-    print(f"Correctness Check (ai-bench)")
+    print(f"Correctness Check")
     print(f"{'=' * 70}")
     correctness_passed = run_correctness(
         args.pytorch_file, args.triton_file, spec_file, args.device
@@ -468,7 +449,7 @@ def main():
     performance_passed = None
     if spec_file and spec_file.exists():
         print(f"\n{'=' * 70}")
-        print(f"Performance Benchmark (ai-bench)")
+        print(f"Performance Benchmark")
         print(f"{'=' * 70}")
         performance_passed = run_performance(
             args.pytorch_file,

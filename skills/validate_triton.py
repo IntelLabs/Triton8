@@ -249,7 +249,7 @@ def validate_triton_kernel(filepath: Path) -> List[ValidationError]:
                 ValidationError(
                     "WARNING",
                     "Model class found but no get_inputs() function. This is required by the "
-                    "benchmark harness (ai-bench).",
+                    "benchmark harness.",
                 )
             )
         if "def get_init_inputs" not in source:
@@ -257,7 +257,7 @@ def validate_triton_kernel(filepath: Path) -> List[ValidationError]:
                 ValidationError(
                     "WARNING",
                     "Model class found but no get_init_inputs() function. This is required by the "
-                    "benchmark harness (ai-bench).",
+                    "benchmark harness.",
                 )
             )
 

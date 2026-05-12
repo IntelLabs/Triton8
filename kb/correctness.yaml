@@ -93,10 +93,10 @@ constraints:
       ```
 
   - id: model_class_pattern
-    name: "Model class must be compatible with ai-bench loading"
+    name: "Model class must be compatible with benchmark harness loading"
     severity: critical
     description: |
-      ai-bench creates Model via direct `__init__()` and uses standard
+      The benchmark harness creates Model via direct `__init__()` and uses standard
       `load_state_dict()` for weight synchronization between reference
       and optimized models.
 
